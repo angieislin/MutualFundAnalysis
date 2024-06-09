@@ -18,10 +18,9 @@ import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
+
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +49,7 @@ public class ScheduledTasks {
         Document document = Jsoup.parse(driver.getPageSource());
         Elements rows = document.select("#tableEachDetail .mainTb tbody tr");
         List<Element> filteredRows = rows.subList(0, Math.min(6, rows.size()));
-        List<DataConfig> configs = new ArrayList<DataConfig>();
+        List<DataConfig> configs = new ArrayList<>();
         for (Element row : filteredRows) {
             Elements cols = row.select("td");
             String code = cols.get(0).text();
@@ -66,9 +65,9 @@ public class ScheduledTasks {
     private void setHistoryNetAssetValue(WebDriver driver, FundInfo fund) {
         logger.info("setHistoryNetAssetValue...");
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        List<HashMap> result = (List<HashMap>)js.executeScript("return window.Data_netWorthTrend;");
-        List<AssetValue> assetValueList = result.stream().map((HashMap map) -> {
-            AssetValue av = new AssetValue(Double.parseDouble(map.get("y")+""), DateUtils.getFormatDate((long)map.get("x")));
+        List<HashMap<String, Object>> result = (List<HashMap<String, Object>>)js.executeScript("return window.Data_netWorthTrend;");
+        List<AssetValue> assetValueList = result.stream().map((HashMap<String, Object> map) -> {
+            AssetValue av = new AssetValue(Double.parseDouble(String.valueOf(map.get("y"))), DateUtils.getFormatDate((long)map.get("x")));
             av.setFund(fund);
             return av;
         }).toList();
@@ -117,9 +116,9 @@ public class ScheduledTasks {
     }
 
     private List<StockHolding> getAllStockHoldings(Document document, LatestFundDetail lfd) {
-        Elements holdingElms = document.select(".poptableWrap").first().select("tr");
-        List<Element> filteredRows = holdingElms.subList(1, holdingElms.size());
         try {
+            Elements holdingElms = Objects.requireNonNull(document.select(".poptableWrap").first()).select("tr");
+            List<Element> filteredRows = holdingElms.subList(1, holdingElms.size());
             return filteredRows.stream().map((Element row) -> {
                 StockHolding sh = new StockHolding();
                 Elements cols = row.select("td");
@@ -135,7 +134,7 @@ public class ScheduledTasks {
         }
     }
 
-//    @Scheduled(initialDelay = 1000 * 30, fixedDelay=Long.MAX_VALUE)
+    @Scheduled(initialDelay = 1000 * 30, fixedDelay=Long.MAX_VALUE)
     public void performInitialLoading() throws InterruptedException {
         logger.info("Initial loading...");
         WebDriver driver = ScrapyUtils.getDriver();
@@ -145,7 +144,7 @@ public class ScheduledTasks {
         ScrapyUtils.quit(driver);
     }
 
-//    @Scheduled(cron = "0 0 10-22 * * MON-SUN")
+    @Scheduled(cron = "0 0 10-22 * * MON-FRI")
     public void performEveryWorkday() throws InterruptedException {
         logger.info("Perform every workday....");
         WebDriver driver = ScrapyUtils.getDriver();
@@ -159,12 +158,12 @@ public class ScheduledTasks {
         }
         ScrapyUtils.quit(driver);
     }
-//    @Scheduled(cron = "0 0 23 * * MON-FRI")
-    public void performAfterWorkday() throws InterruptedException {
+    @Scheduled(cron = "0 0 23 * * MON-FRI")
+    public void performAfterWorkday() {
         logger.info("Perform after workday....");
         List<FundInfo> fundInfoList = fundRepository.findAll();
         List<AssetValue> assetValueList = new ArrayList<>();
-        fundInfoList.stream().forEach((FundInfo fundInfo) -> {
+        fundInfoList.forEach((FundInfo fundInfo) -> {
             LatestFundDetail lfd = latestFundDetailRepository.findTopByFundIdOrderByCreateTimestampDesc(fundInfo.getId());
             AssetValue av = new AssetValue();
             av.setDate(lfd.getCurrentNavDate());
